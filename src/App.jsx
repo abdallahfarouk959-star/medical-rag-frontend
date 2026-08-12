@@ -9,8 +9,11 @@ function App() {
   const [evidence, setEvidence] = useState([]);
 
   const [isUploading, setIsUploading] = useState(false);
-  const [isTyping, setIsTyping] = useState(false); // 🟢 حالة تحميل للإجابة
+  const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef(null);
+
+  // 🌐 الرابط المباشر للـ LocalTunnel الخاص بسيرفرك
+  const BASE_URL = 'https://shiny-grapes-juggle.loca.lt';
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
@@ -34,9 +37,12 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/upload', {
+      const response = await fetch(`${BASE_URL}/upload`, {
         method: 'POST',
         body: formData,
+        headers: {
+          'Bypass-Tunnel-Remainder': 'true' // لتخطي صفحة تحذير localtunnel إن وجدت
+        }
       });
 
       const data = await response.json();
@@ -58,38 +64,36 @@ function App() {
     }
   };
 
-  // 🟢 دالة إرسال السؤال واستقبال الإجابة والأدلة
   const handleSend = async () => {
     if (!input.trim()) return;
 
     const userQuery = input;
-    // إضافة رسالة اليوزر وتفريغ المربع
     setMessages(prev => [...prev, { role: 'user', content: userQuery }]);
     setInput('');
     setIsTyping(true);
 
     try {
-      // إرسال الطلب للـ API
-      const response = await fetch('http://127.0.0.1:8000/query', {
+      const response = await fetch(`${BASE_URL}/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Remainder': 'true'
+        },
         body: JSON.stringify({ question: userQuery, top_k: 3 })
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // إضافة رد الـ AI للشات
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: data.recommendation
         }]);
 
-        // تحديث لوحة الأدلة بالـ Chunks اللي رجعت
         if (data.evidence_panel) {
           setEvidence(data.evidence_panel);
         } else {
-          setEvidence([]); // تفريغ اللوحة لو مفيش أدلة (زي في حالة الرفض)
+          setEvidence([]);
         }
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${data.detail}` }]);
@@ -101,10 +105,14 @@ function App() {
       setIsTyping(false);
     }
   };
+
   const handleClearDB = async () => {
     if (!window.confirm("Are you sure you want to delete all stored documents?")) return;
     try {
-      const response = await fetch('http://127.0.0.1:8000/clear', { method: 'POST' });
+      const response = await fetch(`${BASE_URL}/clear`, { 
+        method: 'POST',
+        headers: { 'Bypass-Tunnel-Remainder': 'true' }
+      });
       if (response.ok) {
         setMessages([{ role: 'assistant', content: '🗑️ Database cleared! You can upload a fresh PDF now.' }]);
         setEvidence([]);
@@ -182,7 +190,8 @@ function App() {
                 </div>
               </div>
             ))}
-            {/* 🟢 مؤشر التحميل */}
+            
+            {/* مؤشر التحميل */}
             {isTyping && (
               <div className="flex justify-start">
                 <div className={`max-w-[80%] rounded-2xl p-4 rounded-bl-none animate-pulse ${isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-100 text-gray-500'
@@ -234,7 +243,7 @@ function App() {
             </h2>
           </div>
 
-          {/* 🟢 Evidence List Mapping */}
+          {/* Evidence List Mapping */}
           <div className={`flex-1 overflow-y-auto p-4 transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-slate-50'
             }`}>
             {evidence.length === 0 ? (
